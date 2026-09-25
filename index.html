@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>3B | Premium Menu Experience</title>
+    
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;800;900&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- GSAP Core (Nur Core wird benötigt für die Kamera-Fahrten) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        dark: '#0A1C13',      
+                        darker: '#06110b',    
+                        primary: '#1A432F',   
+                        gold: '#d4af37',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Verstecke den Scrollbar komplett, da wir GSAP nutzen */
+        ::-webkit-scrollbar {
+            display: none;
+        }
+        
+        body {
+            background-color: #0A1C13;
+            background: linear-gradient(135deg, #163827, #0A1C13);
+            color: #ffffff;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            margin: 0;
+            overflow: hidden; /* WICHTIG: Kein natives Scrollen mehr! */
+            width: 100vw;
+            height: 100vh;
+        }
+
+        /* Das feste Sichtfenster (Kamera-Linse) */
+        #viewport {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            z-index: 10;
+        }
+
+        /* Die riesige Leinwand, auf der alle Sektionen liegen */
+        #board {
+            position: absolute;
+            top: 0;
+            left: 0;
+            /* 300vw breit (3 Spalten), 200vh hoch (2 Zeilen) */
+            width: 300vw;
+            height: 200vh;
+            display: grid;
+            grid-template-columns: repeat(3, 100vw);
+            grid-template-rows: repeat(2, 100vh);
+            transform-origin: 0 0; /* Wichtig für die Zoom-Mathematik */
+            will-change: transform;
+        }
+
+        /* Jede Sektion ist exakt so groß wie der Bildschirm */
+        .menu-section {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+            padding-top: 100px; 
+            padding-bottom: 2rem;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .glass-panel {
+            background: rgba(26, 67, 47, 0.8);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(212, 175, 55, 0.3);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.5);
+        }
+
+        .menu-dots {
+            flex-grow: 1;
+            border-bottom: 2px dotted rgba(212, 175, 55, 0.3);
+            margin: 0 15px;
+            position: relative;
+            top: -8px;
+        }
+
+        #fp-nav {
+            position: fixed;
+            right: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .nav-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: rgba(226, 232, 240, 0.2); 
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .nav-dot:hover, .nav-dot.active {
+            background-color: #d4af37;
+            transform: scale(1.3);
+            box-shadow: 0 0 10px rgba(212, 175, 55, 0.6);
+        }
+    </style>
+</head>
+<body class="font-sans">
+
+    <!-- Ambient Gold Glow (Hintergrund bleibt statisch) -->
+    <div class="fixed top-0 left-0 w-full h-full bg-[radial-gradient(circle,rgba(212,175,55,0.05)_0%,transparent_70%)] pointer-events-none z-0"></div>
+
+    <!-- Zentrales Logo (Bleibt immer fixiert oben) -->
+    <header class="fixed top-0 left-0 w-full z-50 py-3 pointer-events-none flex justify-center bg-gradient-to-b from-[#0A1C13] via-[#0A1C13]/80 to-transparent transition-opacity duration-500" id="main-header">
+        <img src="image_3.png" alt="3B Logo" class="w-16 h-16 md:w-20 md:h-20 rounded-full object-cover border-2 border-[#d4af37]/80 shadow-[0_0_15px_rgba(212,175,55,0.4)] bg-[#1A432F]">
+    </header>
+
+    <!-- Floating Navigation -->
+    <div id="fp-nav" class="hidden md:flex transition-opacity duration-300">
+        <div class="nav-dot active" onclick="manualGoTo(0)"></div>
+        <div class="nav-dot" onclick="manualGoTo(1)"></div>
+        <div class="nav-dot" onclick="manualGoTo(2)"></div>
+        <div class="nav-dot" onclick="manualGoTo(3)"></div>
+        <div class="nav-dot" onclick="manualGoTo(4)"></div>
+    </div>
+
+    <!-- Das Sichtfenster -->
+    <div id="viewport">
+        <!-- Die 3x2 Leinwand -->
+        <div id="board">
+            
+            <!-- (0,0) Section 1: Burger -->
+            <section id="burger" class="menu-section px-6 md:px-16 mx-auto w-full z-10">
+                <div class="text-center mb-2 md:mb-6 shrink-0">
+                    <h2 class="category-title font-black text-5xl md:text-7xl text-gold uppercase tracking-widest drop-shadow-md relative inline-block leading-none mt-2">
+                        BURGER
+                    </h2>
+                    <p class="text-[#E2E8F0]/70 text-xs md:text-sm mt-3 font-medium uppercase tracking-wider">*Alle Burger sind mit Salat, Tomate, roten Zwiebeln belegt</p>
+                </div>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-x-12 lg:gap-x-24 gap-y-2 md:gap-y-4 overflow-hidden flex-grow content-center max-w-6xl mx-auto w-full">
+                    <!-- Spalten-Header -->
+                    <div class="w-full flex justify-end mb-[-5px] lg:mb-[-15px]">
+                        <div class="flex w-[140px] md:w-[160px] text-[10px] md:text-xs font-black text-gold tracking-widest uppercase">
+                            <span class="w-1/2 text-right">Single</span>
+                            <span class="w-1/2 text-right">Menü</span>
+                        </div>
+                    </div>
+                    <div class="hidden lg:flex w-full justify-end mb-[-15px]">
+                        <div class="flex w-[160px] text-xs font-black text-gold tracking-widest uppercase">
+                            <span class="w-1/2 text-right">Single</span>
+                            <span class="w-1/2 text-right">Menü</span>
+                        </div>
+                    </div>
+
+                    <div class="menu-item">
+                        <div class="flex items-end mb-1">
+                            <span class="text-xl md:text-2xl font-black text-white tracking-wide">1. Iconic Smash Burger</span>
+                            <div class="menu-dots"></div>
+                            <div class="flex w-[140px] md:w-[160px] shrink-0 price-col text-lg md:text-xl font-black">
+                                <span class="w-1/2 text-right text-white">8.90</span>
+                                <span class="w-1/2 text-right text-gold">13.90</span>
+                            </div>
+                        </div>
+                        <p class="text-xs text-[#E2E8F0]/70 leading-tight pr-12 font-medium">2 x Rindfleischpatty, Cheddar Käse, Karamellisierte Zwiebeln, saure Gurken, Homemade Soße</p>
+                    </div>
+
+                    <div class="menu-item">
+                        <div class="flex items-end mb-1">
+                            <span class="text-xl md:text-2xl font-black text-white tracking-wide">2. Super Spicy Burger 🌶️</span>
+                            <div class="menu-dots"></div>
+                            <div class="flex w-[140px] md:w-[160px] shrink-0 price-col text-lg md:text-xl font-black">
+                                <span class="w-1/2 text-right text-white">9.50</span>
+                                <span class="w-1/2 text-right text-gold">14.50</span>
+                            </div>
+                        </div>
+                        <p class="text-xs text-[#E2E8F0]/70 leading-tight pr-12 font-medium">2 x Rindfleischpatty, Cheddar Käse, Jalapeños, Karamellisierte Zwiebeln, saure Gurken, Scharfe Homemade Soße</p>
+                    </div>
+
+                    <div class="menu-item">
+                        <div class="flex items-end mb-1">
+                            <span class="text-xl md:text-2xl font-black text-white tracking-wide">3. Chicken Paradies Burger</span>
+                            <div class="menu-dots"></div>
+                            <div class="flex w-[140px] md:w-[160px] shrink-0 price-col text-lg md:text-xl font-black">
+                                <span class="w-1/2 text-right text-white">8.50</span>
+                                <span class="w-1/2 text-right text-gold">13.50</span>
+                            </div>
+                        </div>
+                        <p class="text-xs text-[#E2E8F0]/70 leading-tight pr-12 font-medium">Gegrilltes Hähnchenfleisch, Karamellisierte Zwiebeln, Homemade Soße</p>
+                    </div>
+
+                    <div class="menu-item">
+                        <div class="flex items-end mb-1">
+                            <span class="text-xl md:text-2xl font-black text-white tracking-wide">4. Chicken Crispy Burger</span>
+                            <div class="menu-dots"></div>
+                            <div class="flex w-[140px] md:w-[160px] shrink-0 price-col text-lg md:text-xl font-black">
+                                <span class="w-1/2 text-right text-white">9.90</span>
+                                <span class="w-1/2 text-right text-gold">14.90</span>
+                            </div>
+                        </div>
+                        <p class="text-xs text-[#E2E8F0]/70 leading-tight pr-12 font-medium">Paniertes knusper Hähnchenfleisch, Rucola, Homemade Soße</p>
+                    </div>
+                    
+                    <div class="menu-item">
+                        <div class="flex items-end mb-1 relative">
+                            <span class="text-xl md:text-2xl font-black text-gold tracking-wide relative drop-shadow-sm">
+                                17. Explosiv Smash Burger
+                                <span class="absolute -top-3 -right-12 text-[9px] text-[#0A1C13] bg-[#d4af37] font-black tracking-widest uppercase px-2 py-0.5 rounded shadow-md">NEW</span>
+                            </span>
+                            <div class="menu-dots"></div>
+                            <div class="flex w-[140px] md:w-[160px] shrink-0 price-col text-lg md:text-xl font-black">
+                                <span class="w-1/2 text-right text-white">11.90</span>
+                                <span class="w-1/2 text-right text-gold">16.90</span>
+                            </div>
+                        </div>
+                        <p class="text-xs text-[#E2E8F0]/70 leading-tight pr-12 font-medium">2 x Rindfleischpatty, Cheddar Käse, Sucuk, Ei, Homemade Soße</p>
+                    </div>
+
+                    <div class="menu-item">
+                        <div class="flex items-end mb-1">
+                            <span class="text-xl md:text-2xl font-black text-white tracking-wide">18. B-BBQ Burger</span>
+                            <div class="menu-dots"></div>
+                            <div class="flex w-[140px] md:w-[160px] shrink-0 price-col text-lg md:text-xl font-black">
+                                <span class="w-1/2 text-right text-white">8.90</span>
+                                <span class="w-1/2 text-right text-gold">13.90</span>
+                            </div>
+                        </div>
+                        <p class="text-xs text-[#E2E8F0]/70 leading-tight pr-12 font-medium">2 x Rindfleischpatty, Cheddar Käse, Karamellisierte Zwiebeln, saure Gurken, BBQ Soße</p>
+                    </div>
+                    
+                    <div class="menu-item">
+                        <div class="flex items-end mb-1">
+                            <span class="text-xl md:text-2xl font-black text-white tracking-wide">19. Falafel Burger 🌱</span>
+                            <div class="menu-dots"></div>
+                            <div class="flex w-[140px] md:w-[160px] shrink-0 price-col text-lg md:text-xl font-black">
+                                <span class="w-1/2 text-right text-white">8.50</span>
+                                <span class="w-1/2 text-right text-gold">13.50</span>
+                            </div>
+                        </div>
+                        <p class="text-xs text-[#E2E8F0]/70 leading-tight pr-12 font-medium">Frische Falafel, Cheddar Käse, Homemade Soße</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- (1,0) Section 2: Bocadillo -->
+            <section id="bocadillo" class="menu-section px-6 md:px-16 mx-auto z-10">
+                <div class="w-full flex flex-col items-center flex-grow justify-center max-w-[1200px] mx-auto">
+                    <div class="text-center mb-10 shrink-0">
+                        <h2 class="category-title font-black text-6xl md:text-8xl text-gold uppercase tracking-widest drop-shadow-lg mb-4 leading-none">BOCADILLO</h2>
+                        <p class="text-[#E2E8F0]/70 text-sm font-medium uppercase tracking-wider">*Alle Bocadillos sind mit Pommes, Salat, Tomate, Zwiebeln, Karotten, Oliven belegt</p>
+                    </div>
+
+                    <div class="flex flex-col gap-8 w-full max-w-3xl">
+                        <div class="w-full flex justify-end mb-[-15px]">
+                            <div class="flex w-[140px] md:w-[160px] text-[10px] md:text-xs font-black text-gold tracking-widest uppercase">
+                                <span class="w-1/2 text-right">Single</span>
+                                <span class="w-1/2 text-right">Menü</span>
+                            </div>
+                        </div>
+
+                        <div class="menu-item">
+                            <div class="flex items-end mb-2">
+                                <span class="text-2xl md:text-3xl font-black text-white tracking-wide">8. Merguez Marocain</span>
+                                <div class="menu-dots"></div>
+                                <div class="flex w-[140px] md:w-[160px] shrink-0 price-col text-xl md:text-2xl font-black">
+                                    <span class="w-1/2 text-right text-white">10.50</span>
+                                    <span class="w-1/2 text-right text-gold">15.50</span>
+                                </div>
+                            </div>
+                            <p class="text-sm text-[#E2E8F0]/70 leading-relaxed pr-16 font-medium">Saftige Merguez Wurst, Oliven, Homemade Soße</p>
+                        </div>
+
+                        <div class="menu-item">
+                            <div class="flex items-end mb-2">
+                                <span class="text-2xl md:text-3xl font-black text-white tracking-wide">9. Chicken Paradies</span>
+                                <div class="menu-dots"></div>
+                                <div class="flex w-[140px] md:w-[160px] shrink-0 price-col text-xl md:text-2xl font-black">
+                                    <span class="w-1/2 text-right text-white">9.90</span>
+                                    <span class="w-1/2 text-right text-gold">14.90</span>
+                                </div>
+                            </div>
+                            <p class="text-sm text-[#E2E8F0]/70 leading-relaxed pr-16 font-medium">Mariniertes Hähnchenfleisch, Homemade Soße</p>
+                        </div>
+
+                        <div class="menu-item">
+                            <div class="flex items-end mb-2">
+                                <span class="text-2xl md:text-3xl font-black text-white tracking-wide">10. Chicken Crispy</span>
+                                <div class="menu-dots"></div>
+                                <div class="flex w-[140px] md:w-[160px] shrink-0 price-col text-xl md:text-2xl font-black">
+                                    <span class="w-1/2 text-right text-white">10.50</span>
+                                    <span class="w-1/2 text-right text-gold">15.50</span>
+                                </div>
+                            </div>
+                            <p class="text-sm text-[#E2E8F0]/70 leading-relaxed pr-16 font-medium">Paniertes knusper Hähnchenfleisch, Homemade Soße</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+                
+            <!-- (2,0) Section 3: Burrito -->
+            <section id="burrito" class="menu-section px-6 md:px-16 mx-auto z-10">
+                <div class="max-w-[1400px] mx-auto w-full h-full flex flex-col">
+                    <div class="text-center mb-6 md:mb-10 shrink-0">
+                        <h2 class="category-title font-black text-5xl md:text-7xl text-gold uppercase tracking-widest drop-shadow-md mt-4 leading-none">BURRITO</h2>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-x-12 lg:gap-x-24 gap-y-4 md:gap-y-8 overflow-hidden flex-grow content-center max-w-6xl mx-auto w-full">
+                        <div class="w-full flex justify-end mb-[-10px] md:mb-[-20px]">
+                            <div class="flex w-[140px] md:w-[160px] text-[10px] md:text-xs font-black text-gold tracking-widest uppercase">
+                                <span class="w-1/2 text-right">Single</span>
+                                <span class="w-1/2 text-right">Menü</span>
+                            </div>
+                        </div>
+                        <div class="hidden lg:flex w-full justify-end mb-[-20px]">
+                            <div class="flex w-[160px] text-xs font-black text-gold tracking-widest uppercase">
+                                <span class="w-1/2 text-right">Single</span>
+                                <span class="w-1/2 text-right">Menü</span>
+                            </div>
+                        </div>
+
+                        <div class="menu-item">
+                            <div class="flex items-end mb-1">
+                                <span class="text-xl md:text-2xl font-black text-white tracking-wide">5. Merguez Burrito</span>
+                                <div class="menu-dots"></div>
+                                <div class="flex w-[140px] md:w-[160px] shrink-0 price-col text-lg md:text-xl font-black">
+                                    <span class="w-1/2 text-right text-white">9.50</span>
+                                    <span class="w-1/2 text-right text-gold">14.50</span>
+                                </div>
+                            </div>
+                            <p class="text-xs text-[#E2E8F0]/70 leading-tight pr-12 font-medium">Saftige Merguez Wurst, knackige Pommes, Cheddar Käse, Mais, Homemade Soße</p>
+                        </div>
+
+                        <div class="menu-item">
+                            <div class="flex items-end mb-1">
+                                <span class="text-xl md:text-2xl font-black text-white tracking-wide">6. Chicken Paradies Burrito</span>
+                                <div class="menu-dots"></div>
+                                <div class="flex w-[140px] md:w-[160px] shrink-0 price-col text-lg md:text-xl font-black">
+                                    <span class="w-1/2 text-right text-white">8.90</span>
+                                    <span class="w-1/2 text-right text-gold">13.90</span>
+                                </div>
+                            </div>
+                            <p class="text-xs text-[#E2E8F0]/70 leading-tight pr-12 font-medium">Hähnchenfleisch, knackige Pommes, Cheddar Käse, Mais, Homemade Soße</p>
+                        </div>
+
+                        <div class="menu-item">
+                            <div class="flex items-end mb-1">
+                                <span class="text-xl md:text-2xl font-black text-white tracking-wide">7. Chicken Spicy Burrito 🌶️</span>
+                                <div class="menu-dots"></div>
+                                <div class="flex w-[140px] md:w-[160px] shrink-0 price-col text-lg md:text-xl font-black">
+                                    <span class="w-1/2 text-right text-white">9.50</span>
+                                    <span class="w-1/2 text-right text-gold">14.50</span>
+                                </div>
+                            </div>
+                            <p class="text-xs text-[#E2E8F0]/70 leading-tight pr-12 font-medium">Hähnchenfleisch, knackige Pommes, Cheddar, Jalapeños, Mais, Homemade Soße</p>
+                        </div>
+
+                        <div class="menu-item">
+                            <div class="flex items-end mb-1">
+                                <span class="text-xl md:text-2xl font-black text-white tracking-wide">20. Crispy Burrito</span>
+                                <div class="menu-dots"></div>
+                                <div class="flex w-[140px] md:w-[160px] shrink-0 price-col text-lg md:text-xl font-black">
+                                    <span class="w-1/2 text-right text-white">9.50</span>
+                                    <span class="w-1/2 text-right text-gold">13.90</span>
+                                </div>
+                            </div>
+                            <p class="text-xs text-[#E2E8F0]/70 leading-tight pr-12 font-medium">Paniertes Hähnchenfleisch, knackige Pommes, Cheddar Käse, Mais, Homemade Soße</p>
+                        </div>
+                        
+                        <div class="menu-item">
+                            <div class="flex items-end mb-1">
+                                <span class="text-xl md:text-2xl font-black text-white tracking-wide">21. Kefta Burrito</span>
+                                <div class="menu-dots"></div>
+                                <div class="flex w-[140px] md:w-[160px] shrink-0 price-col text-lg md:text-xl font-black">
+                                    <span class="w-1/2 text-right text-white">8.90</span>
+                                    <span class="w-1/2 text-right text-gold">13.90</span>
+                                </div>
+                            </div>
+                            <p class="text-xs text-[#E2E8F0]/70 leading-tight pr-12 font-medium">Hackfleisch, knackige Pommes, Cheddar Käse, Homemade Soße</p>
+                        </div>
+                        
+                        <div class="menu-item">
+                            <div class="flex items-end mb-1">
+                                <span class="text-xl md:text-2xl font-black text-white tracking-wide">22. Falafel Burrito 🌱</span>
+                                <div class="menu-dots"></div>
+                                <div class="flex w-[140px] md:w-[160px] shrink-0 price-col text-lg md:text-xl font-black">
+                                    <span class="w-1/2 text-right text-white">8.90</span>
+                                    <span class="w-1/2 text-right text-gold">13.90</span>
+                                </div>
+                            </div>
+                            <p class="text-xs text-[#E2E8F0]/70 leading-tight pr-12 font-medium">Frische Falafel, knackige Pommes, Cheddar Käse, Homemade Soße</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- (0,1) Section 4: Sides & Salads -->
+            <section id="sides" class="menu-section px-6 md:px-16 mx-auto z-10">
+                <div class="max-w-[1400px] mx-auto w-full h-full flex flex-col">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-x-12 gap-y-8 flex-grow content-center w-full h-full pb-8">
+                        <div class="flex flex-col justify-center h-full">
+                            <h2 class="category-title font-black text-4xl md:text-5xl text-gold uppercase tracking-widest drop-shadow-md mb-6 shrink-0">SIDES & EXTRAS</h2>
+                            <div class="flex flex-col gap-4 overflow-hidden">
+                                <div class="menu-item">
+                                    <div class="flex items-end mb-1">
+                                        <span class="text-xl md:text-2xl font-black text-white tracking-wide">12. Currywurst mit Brot</span>
+                                        <div class="menu-dots"></div>
+                                        <span class="text-lg md:text-xl font-black text-white w-[70px] md:w-[80px] text-right shrink-0">5.50</span>
+                                    </div>
+                                </div>
+                                <div class="menu-item">
+                                    <div class="flex items-end mb-1">
+                                        <span class="text-xl md:text-2xl font-black text-white tracking-wide">13. Currywurst + Pommes + Brot</span>
+                                        <div class="menu-dots"></div>
+                                        <span class="text-lg md:text-xl font-black text-white w-[70px] md:w-[80px] text-right shrink-0">7.50</span>
+                                    </div>
+                                </div>
+                                <div class="menu-item">
+                                    <div class="flex items-end mb-1">
+                                        <span class="text-xl md:text-2xl font-black text-white tracking-wide">14. Pommes</span>
+                                        <div class="menu-dots"></div>
+                                        <span class="text-lg md:text-xl font-black text-white w-[70px] md:w-[80px] text-right shrink-0">3.90</span>
+                                    </div>
+                                </div>
+                                <div class="menu-item">
+                                    <div class="flex items-end mb-1">
+                                        <span class="text-xl md:text-2xl font-black text-white tracking-wide">A. Süßkartoffel</span>
+                                        <div class="menu-dots"></div>
+                                        <span class="text-lg md:text-xl font-black text-gold w-[70px] md:w-[80px] text-right shrink-0">4.90</span>
+                                    </div>
+                                </div>
+                                <div class="menu-item">
+                                    <div class="flex items-end mb-1">
+                                        <span class="text-xl md:text-2xl font-black text-white tracking-wide">15. Chicken Crispy Bowl</span>
+                                        <div class="menu-dots"></div>
+                                        <span class="text-lg md:text-xl font-black text-white w-[70px] md:w-[80px] text-right shrink-0">9.50</span>
+                                    </div>
+                                    <p class="text-xs text-[#E2E8F0]/70 font-medium">Knackige Pommes, paniertes Hähnchenfleisch, Homemade Soße</p>
+                                </div>
+                                <div class="menu-item">
+                                    <div class="flex items-end mb-1">
+                                        <span class="text-xl md:text-2xl font-black text-white tracking-wide">23. Falafel Bowl 🌱</span>
+                                        <div class="menu-dots"></div>
+                                        <span class="text-lg md:text-xl font-black text-white w-[70px] md:w-[80px] text-right shrink-0">8.90</span>
+                                    </div>
+                                    <p class="text-xs text-[#E2E8F0]/70 font-medium">Pommes, frische Falafel, Mais, Karotten, Rucola</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-col justify-center h-full gap-8">
+                            <div class="glass-panel rounded-3xl p-6 flex flex-row items-center relative">
+                                <div class="flex-1">
+                                    <h2 class="font-black text-3xl md:text-4xl text-gold uppercase tracking-widest leading-none mb-1">27. CHICKEN</h2>
+                                    <h2 class="font-black text-3xl md:text-4xl text-gold uppercase tracking-widest leading-none mb-2">WINGS</h2>
+                                    <p class="text-sm font-bold tracking-widest uppercase text-[#E2E8F0]">(Sweet - Chilli)</p>
+                                </div>
+                                <div class="w-32 h-32 md:w-48 md:h-48 rounded-full overflow-hidden border-2 border-gold/50 ml-4 shrink-0 bg-[#0A1C13] flex items-center justify-center relative shadow-[0_0_15px_rgba(212,175,55,0.3)]">
+                                    <img src="chicken-wings.jpg" alt="Chicken Wings Sweet Chilli" class="w-full h-full object-cover z-10" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                    <span class="text-[10px] text-center text-gold/50 absolute hidden px-2 font-bold uppercase">Bild fehlt</span>
+                                    <div class="absolute -top-2 -right-2 bg-gold text-[#0A1C13] font-black text-[10px] tracking-widest uppercase px-3 py-1 rounded shadow-lg rotate-12 z-20">LIMITED</div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <h2 class="category-title font-black text-4xl text-gold uppercase tracking-widest drop-shadow-md mb-4 shrink-0">SALAT</h2>
+                                <div class="menu-item">
+                                    <div class="flex items-end mb-1">
+                                        <span class="text-xl md:text-2xl font-black text-white tracking-wide">16. Bauernsalat</span>
+                                        <div class="menu-dots"></div>
+                                        <span class="text-lg md:text-xl font-black text-white w-[70px] md:w-[80px] text-right shrink-0">7.90</span>
+                                    </div>
+                                    <p class="text-sm text-gold mt-1 font-bold">+ Hähnchenstreifen: <span class="font-black text-white ml-2">3.00 €</span></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- (1,1) Section 5: Drinks, Dips & Footer -->
+            <section id="drinks" class="menu-section px-6 md:px-16 mx-auto z-10">
+                <div class="max-w-[1400px] mx-auto w-full h-full flex flex-col">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-x-16 gap-y-12 flex-grow content-center w-full max-w-5xl mx-auto">
+                        <div class="flex flex-col justify-center">
+                            <h2 class="category-title font-black text-5xl text-gold uppercase tracking-widest drop-shadow-md mb-8">DIPS</h2>
+                            <div class="menu-item">
+                                <div class="flex items-end mb-2">
+                                    <span class="text-xl md:text-2xl font-black text-[#E2E8F0] tracking-wide">Andalous, Samurai, Brazil, Ketchup, Maymo</span>
+                                    <div class="menu-dots"></div>
+                                    <span class="text-xl font-black text-gold price-col w-[70px] md:w-[80px] text-right shrink-0">0.50</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-col justify-center">
+                            <h2 class="category-title font-black text-5xl text-gold uppercase tracking-widest drop-shadow-md mb-8">GETRÄNKE</h2>
+                            <div class="flex flex-col gap-5">
+                                <div class="menu-item">
+                                    <div class="flex items-end">
+                                        <span class="text-xl md:text-2xl font-black text-white tracking-wide">Cola, Fanta, Sprite, MezzoMix</span>
+                                        <div class="menu-dots"></div>
+                                        <span class="text-xl font-black text-white price-col w-[70px] md:w-[80px] text-right shrink-0">2.70</span>
+                                    </div>
+                                </div>
+                                <div class="menu-item">
+                                    <div class="flex items-end">
+                                        <span class="text-xl md:text-2xl font-black text-white tracking-wide">Elephant Bay Eistee & Limonade</span>
+                                        <div class="menu-dots"></div>
+                                        <span class="text-xl font-black text-white price-col w-[70px] md:w-[80px] text-right shrink-0">2.90</span>
+                                    </div>
+                                </div>
+                                <div class="menu-item">
+                                    <div class="flex items-end">
+                                        <span class="text-xl md:text-2xl font-black text-white tracking-wide">Wasser (Still/Sprudel)</span>
+                                        <div class="menu-dots"></div>
+                                        <span class="text-xl font-black text-white price-col w-[70px] md:w-[80px] text-right shrink-0">2.50</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="shrink-0 text-center pb-4 pt-8 border-t border-white/10 mt-auto max-w-3xl mx-auto w-full">
+                        <h3 class="font-black text-2xl md:text-3xl text-gold uppercase tracking-widest mb-3 drop-shadow-md">GUTEN HUNGER - B'SSAHA - BUON APPETITO</h3>
+                        <div class="flex flex-col md:flex-row justify-center items-center gap-4 text-sm text-[#E2E8F0]/70 font-bold uppercase tracking-wider">
+                            <p>Konrad-Adenauer-Str. 26, 63322 Rödermark</p>
+                            <span class="hidden md:inline text-gold">•</span>
+                            <p>Di - So: 11:30 - 22:00 Uhr</p>
+                            <span class="hidden md:inline text-gold">•</span>
+                            <p>Tel.: 06074 728 6658</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- (2,1) Section 6: Optischer Abschluss für das 3x2 Grid -->
+            <section id="filler" class="menu-section flex items-center justify-center relative bg-[radial-gradient(circle,rgba(212,175,55,0.05)_0%,transparent_60%)]">
+                <div class="text-center flex flex-col items-center justify-center p-12">
+                    <img src="image_3.png" alt="3B Logo Groß" class="w-48 h-48 md:w-64 md:h-64 rounded-full object-cover border-4 border-[#d4af37]/50 shadow-[0_0_40px_rgba(212,175,55,0.4)] mb-8">
+                    <h2 class="font-black text-4xl md:text-6xl text-white uppercase tracking-widest mb-6 drop-shadow-lg">Wir freuen uns auf<br><span class="text-gold">deine Bestellung</span></h2>
+                    <span class="px-6 py-2 border-2 border-gold/40 bg-[#1A432F] rounded-full text-gold text-sm md:text-base font-black tracking-widest uppercase shadow-md mt-4">100% HALAL</span>
+                </div>
+            </section>
+
+        </div>
+    </div>
+
+    <script>
+        // Setup GSAP
+        const board = document.getElementById('board');
+        const header = document.getElementById('main-header');
+        const nav = document.getElementById('fp-nav');
+        
+        // 5 echte Kategorien
+        const sections = ['burger', 'bocadillo', 'burrito', 'sides', 'drinks'];
+        let currentIndex = 0;
+        let isOverview = false;
+        let presentationTimer;
+
+        // Wie lange man sich eine Kategorie im Detail ansieht (in Millisekunden)
+        const categoryDelays = {
+            0: 14000, // Burger (Viel Text)
+            1: 9000,  // Bocadillo
+            2: 12000, // Burrito
+            3: 11000, // Sides
+            4: 9000   // Drinks
+        };
+
+        // Berechnet, wie der #board-Container skaliert und verschoben werden muss,
+        // damit alle 6 Zellen (3 Spalten x 2 Zeilen) in den Bildschirm passen.
+        function getOverviewTransform() {
+            const padding = window.innerWidth < 768 ? 1.05 : 1.02; // Minimaler Rand
+            
+            // Die physische Pixel-Größe des Boards (300vw x 200vh)
+            const boardW = window.innerWidth * 3;
+            const boardH = window.innerHeight * 2;
+            
+            // Skalierungsfaktoren, um diese riesige Fläche in den Bildschirm zu quetschen
+            const scaleX = window.innerWidth / (boardW * padding);
+            const scaleY = window.innerHeight / (boardH * padding);
+            
+            // Wir nehmen den kleineren Faktor, damit nichts abgeschnitten wird
+            const scale = Math.min(scaleX, scaleY);
+            
+            // Berechne die neue, skalierte Größe in Pixeln
+            const scaledW = boardW * scale;
+            const scaledH = boardH * scale;
+            
+            // Zentriere die skalierte Fläche exakt in der Mitte des Bildschirms
+            const x = (window.innerWidth - scaledW) / 2;
+            const y = (window.innerHeight - scaledH) / 2;
+            
+            return { x, y, scale };
+        }
+
+        // Berechnet die Verschiebung, um exakt EINE Sektion bildschirmfüllend zu zeigen
+        function getDetailTransform(index) {
+            const col = index % 3; // Spalte 0, 1 oder 2
+            const row = Math.floor(index / 3); // Zeile 0 oder 1
+            
+            return {
+                x: -col * window.innerWidth, // Nach links verschieben
+                y: -row * window.innerHeight, // Nach oben verschieben
+                scale: 1 // Volle Originalgröße
+            };
+        }
+
+        // Aktualisiert die Punkte an der Seite
+        function updateNav(index) {
+            document.querySelectorAll('.nav-dot').forEach((d, i) => {
+                if(i === index) d.classList.add('active');
+                else d.classList.remove('active');
+            });
+        }
+
+        // --- ANIMATIONS-ZUSTÄNDE ---
+
+        function goToOverview(nextIndex) {
+            isOverview = true;
+            clearTimeout(presentationTimer);
+            
+            const target = getOverviewTransform();
+            
+            // Während der Übersicht verstecken wir die kleine Navi und zeigen das obere Logo leicht abgedunkelt
+            gsap.to(nav, {opacity: 0, duration: 0.3});
+            header.style.opacity = "0.7";
+            
+            gsap.to(board, {
+                x: target.x,
+                y: target.y,
+                scale: target.scale,
+                duration: 1.8,       // Super weiche, cinematische Dauer
+                ease: "expo.inOut",  // "Prezi"-Effekt Kurve
+                onComplete: () => {
+                    // Halte den Overview-Screen für 2.5 Sekunden
+                    presentationTimer = setTimeout(() => {
+                        goToDetail(nextIndex);
+                    }, 2500); 
+                }
+            });
+        }
+
+        function goToDetail(index) {
+            isOverview = false;
+            currentIndex = index;
+            clearTimeout(presentationTimer);
+            
+            updateNav(index);
+            gsap.to(nav, {opacity: 1, duration: 0.3, delay: 1});
+            header.style.opacity = "1"; // Logo wieder voll sichtbar
+            
+            const target = getDetailTransform(index);
+            
+            gsap.to(board, {
+                x: target.x,
+                y: target.y,
+                scale: target.scale,
+                duration: 1.8,
+                ease: "expo.inOut",
+                onComplete: () => {
+                    const delay = categoryDelays[index] || 12000;
+                    // Nach dynamischer Lesezeit: Rauszoomen und zum nächsten Index springen
+                    presentationTimer = setTimeout(() => {
+                        let nextIdx = (currentIndex + 1) % sections.length;
+                        goToOverview(nextIdx);
+                    }, delay);
+                }
+            });
+        }
+
+        // Wird aufgerufen, wenn jemand auf einen Punkt rechts klickt
+        function manualGoTo(index) {
+            clearTimeout(presentationTimer);
+            
+            if(isOverview) {
+                // Wenn wir schon draußen sind, zoom direkt ins Ziel
+                goToDetail(index);
+            } else {
+                // Wenn wir in einem Detail sind, zoom erst raus (Overview) und dann ins Ziel
+                goToOverview(index);
+            }
+        }
+
+        // --- INITIALISIERUNG ---
+        
+        document.addEventListener("DOMContentLoaded", () => {
+            // Setze den Board-Startpunkt (sicher ist sicher)
+            gsap.set(board, { x: 0, y: 0, scale: 1 });
+            
+            // Starte die Show: Beginne direkt mit dem Rauszoomen ins Overview
+            // (Simuliert, dass das Menu "aufwacht")
+            setTimeout(() => {
+                goToOverview(0);
+            }, 1000);
+        });
+
+        // Responsive Update: Wenn das Tablet/Fenster gedreht wird
+        window.addEventListener('resize', () => {
+            if (isOverview) {
+                const target = getOverviewTransform();
+                gsap.set(board, { x: target.x, y: target.y, scale: target.scale });
+            } else {
+                const target = getDetailTransform(currentIndex);
+                gsap.set(board, { x: target.x, y: target.y, scale: target.scale });
+            }
+        });
+
+    </script>
+</body>
+</html>
