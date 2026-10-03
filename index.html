@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3B | Premium Menu Board</title>
+    
+    <!-- Fallback auf Standard-Schriftarten falls Google Fonts durch Firewall blockiert wird -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
+    
+    <style>
+        /* PURES CSS - Keine externen Bibliotheken nötig! */
+        * {
+            box-sizing: border-box;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: #0A1C13;
+            background: linear-gradient(135deg, #163827, #0A1C13);
+            color: #ffffff;
+            font-family: 'Inter', Arial, sans-serif;
+            overflow: hidden; /* Verhindert natives Scrollen */
+        }
+
+        /* Ambient Glow Background */
+        .ambient-bg {
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: radial-gradient(circle, rgba(212,175,55,0.06) 0%, transparent 60%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* Header & Logo */
+        header {
+            position: fixed;
+            top: 0; left: 0; width: 100vw;
+            padding: 15px 0;
+            display: flex;
+            justify-content: center;
+            background: linear-gradient(to bottom, #0A1C13 0%, rgba(10,28,19,0.8) 50%, transparent 100%);
+            z-index: 50;
+            transition: opacity 0.5s ease;
+        }
+
+        .logo-img {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid rgba(212, 175, 55, 0.8);
+            box-shadow: 0 0 15px rgba(212, 175, 55, 0.4);
+            background-color: #1A432F;
+        }
+
+        /* Das Sichtfenster (Kamera-Linse) */
+        #viewport {
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            overflow: hidden;
+            z-index: 10;
+        }
+
+        /* Die riesige Leinwand (300vw x 200vh) */
+        #board {
+            position: absolute;
+            top: 0; left: 0;
+            width: 300vw;
+            height: 200vh;
+            transform-origin: 0 0;
+            /* Native CSS Animation für flüssige Hardware-Beschleunigung auf Monitoren */
+            transition: transform 1.8s cubic-bezier(0.85, 0, 0.15, 1);
+            will-change: transform;
+        }
+
+        /* Jede Kategorie-Sektion */
+        .menu-section {
+            position: absolute;
+            width: 100vw;
+            height: 100vh;
+            padding: 110px 80px 40px 80px; /* Perfekt für 1920x1080 */
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Positionierung im 3x2 Grid */
+        #sec-burger { top: 0; left: 0; }
+        #sec-bocadillo { top: 0; left: 100vw; }
+        #sec-burrito { top: 0; left: 200vw; }
+        #sec-sides { top: 100vh; left: 0; }
+        #sec-drinks { top: 100vh; left: 100vw; }
+        #sec-filler { top: 100vh; left: 200vw; display: flex; align-items: center; justify-content: center; }
+
+        /* Kategorie Überschriften */
+        .cat-header {
+            text-align: center;
+            margin-bottom: 40px;
+            flex-shrink: 0;
+        }
+        .cat-title {
+            font-size: 75px;
+            font-weight: 900;
+            color: #d4af37;
+            text-transform: uppercase;
+            letter-spacing: 6px;
+            margin: 0;
+            line-height: 1;
+            text-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        }
+        .cat-subtitle {
+            font-size: 15px;
+            color: rgba(226, 232, 240, 0.7);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin: 15px 0 0 0;
+            font-weight: 600;
+        }
+
+        /* Spalten-Layout */
+        .items-grid {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            width: 100%;
+            max-width: 1500px;
+            margin: 0 auto;
+            flex-grow: 1;
+            align-content: center;
+        }
+        .col-half {
+            width: 46%;
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+        }
+        .col-full {
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+        }
+
+        /* Preis-Kopfzeile (Single / Menü) */
+        .price-header-row {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: -15px;
+        }
+        .price-labels {
+            display: flex;
+            width: 180px;
+            font-size: 13px;
+            font-weight: 900;
+            color: #d4af37;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+        .price-labels span {
+            width: 50%;
+            text-align: right;
+        }
+
+        /* Einzelnes Gericht */
+        .menu-item {
+            width: 100%;
+        }
+        .item-header {
+            display: flex;
+            align-items: flex-end;
+            margin-bottom: 6px;
+        }
+        .item-name {
+            font-size: 26px;
+            font-weight: 900;
+            color: #ffffff;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+        }
+        .item-name.gold-text {
+            color: #d4af37;
+        }
+        .badge {
+            position: relative;
+            top: -12px;
+            background: #d4af37;
+            color: #0A1C13;
+            font-size: 11px;
+            font-weight: 900;
+            padding: 3px 6px;
+            border-radius: 4px;
+            margin-left: 5px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        }
+        .dots {
+            flex-grow: 1;
+            border-bottom: 2px dotted rgba(212, 175, 55, 0.4);
+            margin: 0 15px;
+            position: relative;
+            top: -8px;
+        }
+        .item-prices {
+            display: flex;
+            width: 180px;
+            flex-shrink: 0;
+            font-size: 24px;
+            font-weight: 900;
+        }
+        .price-single {
+            width: 50%;
+            text-align: right;
+            color: #ffffff;
+        }
+        .price-menu {
+            width: 50%;
+            text-align: right;
+            color: #d4af37;
+        }
+        .single-price-col {
+            width: 80px;
+            justify-content: flex-end;
+        }
+        .single-price-col .price-menu {
+            width: 100%;
+        }
+        .item-desc {
+            font-size: 15px;
+            color: rgba(226, 232, 240, 0.75);
+            font-weight: 600;
+            margin: 0;
+            padding-right: 60px;
+            line-height: 1.3;
+        }
+
+        /* Chicken Wings Promo Box */
+        .promo-box {
+            background: rgba(26, 67, 47, 0.8);
+            border: 1px solid rgba(212, 175, 55, 0.3);
+            border-radius: 20px;
+            padding: 25px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.5);
+            margin-bottom: 40px;
+            position: relative;
+        }
+        .promo-text h2 {
+            margin: 0; font-size: 45px; color: #d4af37; font-weight: 900; line-height: 1; text-transform: uppercase;
+        }
+        .promo-text p {
+            margin: 8px 0 0 0; font-size: 14px; color: #E2E8F0; font-weight: 700; text-transform: uppercase; letter-spacing: 2px;
+        }
+        .promo-img-wrapper {
+            position: relative;
+        }
+        .promo-img {
+            width: 160px; height: 160px; border-radius: 50%; border: 3px solid rgba(212, 175, 55, 0.5);
+            object-fit: cover; background-color: #0A1C13;
+        }
+        .promo-badge {
+            position: absolute; top: -10px; right: -10px;
+            background: #d4af37; color: #0A1C13; font-weight: 900; font-size: 12px;
+            padding: 4px 10px; border-radius: 4px; text-transform: uppercase; letter-spacing: 2px;
+            transform: rotate(10deg); box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+        }
+
+        /* Footer (Getränke Section) */
+        .footer-info {
+            text-align: center;
+            margin-top: auto;
+            padding-top: 30px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            width: 100%;
+            max-width: 900px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .footer-info h3 {
+            font-size: 32px; color: #d4af37; font-weight: 900; margin: 0 0 15px 0; letter-spacing: 4px;
+        }
+        .footer-info p {
+            font-size: 17px; color: rgba(226, 232, 240, 0.7); font-weight: 700; text-transform: uppercase; margin: 0; letter-spacing: 2px; display: inline-block;
+        }
+        .gold-dot {
+            color: #d4af37; margin: 0 15px; font-weight: 900;
+        }
+
+        /* Filler Panel (6. Feld) */
+        .filler-content {
+            text-align: center;
+        }
+        .filler-logo {
+            width: 250px; height: 250px; border-radius: 50%; object-fit: cover;
+            border: 4px solid rgba(212,175,55,0.5); box-shadow: 0 0 40px rgba(212,175,55,0.4);
+            margin-bottom: 40px;
+        }
+        .filler-text {
+            font-size: 60px; font-weight: 900; color: #fff; text-transform: uppercase; margin: 0; line-height: 1.2;
+        }
+        .filler-text span { color: #d4af37; }
+        .halal-badge {
+            display: inline-block; margin-top: 30px;
+            padding: 10px 30px; border: 2px solid rgba(212,175,55,0.4); background: #1A432F;
+            border-radius: 50px; color: #d4af37; font-size: 20px; font-weight: 900; letter-spacing: 3px;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="ambient-bg"></div>
+
+    <header id="main-header">
+        <img src="Logo.jpg" alt="The 3B Logo" class="logo-img">
+    </header>
+
+    <div id="viewport">
+        <div id="board">
+            
+            <!-- SECTION 1: BURGER (0,0) -->
+            <section id="sec-burger" class="menu-section">
+                <div class="cat-header">
+                    <h2 class="cat-title">BURGER</h2>
+                    <p class="cat-subtitle">*Alle Burger sind mit Salat, Tomate, roten Zwiebeln belegt</p>
+                </div>
+                
+                <div class="items-grid">
+                    <!-- Linke Spalte -->
+                    <div class="col-half">
+                        <div class="price-header-row">
+                            <div class="price-labels"><span>Single</span><span>Menü</span></div>
+                        </div>
+                        
+                        <div class="menu-item">
+                            <div class="item-header">
+                                <span class="item-name">1. Iconic Smash Burger</span>
+                                <div class="dots"></div>
+                                <div class="item-prices"><span class="price-single">8.90</span><span class="price-menu">13.90</span></div>
+                            </div>
+                            <p class="item-desc">2 x Rindfleischpatty, Cheddar Käse, Karamellisierte Zwiebeln, saure Gurken, Homemade Soße</p>
+                        </div>
+                        
+                        <div class="menu-item">
+                            <div class="item-header">
+                                <span class="item-name">2. Super Spicy Burger 🌶️</span>
+                                <div class="dots"></div>
+                                <div class="item-prices"><span class="price-single">9.50</span><span class="price-menu">14.50</span></div>
+                            </div>
+                            <p class="item-desc">2 x Rindfleischpatty, Cheddar Käse, Jalapeños, Karamellisierte Zwiebeln, saure Gurken, Scharfe Homemade Soße</p>
+                        </div>
+
+                        <div class="menu-item">
+                            <div class="item-header">
+                                <span class="item-name">3. Chicken Paradies Burger</span>
+                                <div class="dots"></div>
+                                <div class="item-prices"><span class="price-single">8.50</span><span class="price-menu">13.50</span></div>
+                            </div>
+                            <p class="item-desc">Gegrilltes Hähnchenfleisch, Karamellisierte Zwiebeln, Homemade Soße</p>
+                        </div>
+
+                        <div class="menu-item">
+                            <div class="item-header">
+                                <span class="item-name">4. Chicken Crispy Burger</span>
+                                <div class="dots"></div>
+                                <div class="item-prices"><span class="price-single">9.90</span><span class="price-menu">14.90</span></div>
+                            </div>
+                            <p class="item-desc">Paniertes knusper Hähnchenfleisch, Rucola, Homemade Soße</p>
+                        </div>
+                    </div>
+
+                    <!-- Rechte Spalte -->
+                    <div class="col-half">
+                        <div class="price-header-row">
+                            <div class="price-labels"><span>Single</span><span>Menü</span></div>
+                        </div>
+
+                        <div class="menu-item">
+                            <div class="item-header">
+                                <span class="item-name gold-text">17. Explosiv Smash Burger <span class="badge">NEW</span></span>
+                                <div class="dots"></div>
+                                <div class="item-prices"><span class="price-single">11.90</span><span class="price-menu">16.90</span></div>
+                            </div>
+                            <p class="item-desc">2 x Rindfleischpatty, Cheddar Käse, Sucuk, Ei, Homemade Soße</p>
+                        </div>
+
+                        <div class="menu-item">
+                            <div class="item-header">
+                                <span class="item-name">18. B-BBQ Burger</span>
+                                <div class="dots"></div>
+                                <div class="item-prices"><span class="price-single">8.90</span><span class="price-menu">13.90</span></div>
+                            </div>
+                            <p class="item-desc">2 x Rindfleischpatty, Cheddar Käse, Karamellisierte Zwiebeln, saure Gurken, BBQ Soße</p>
+                        </div>
+
+                        <div class="menu-item">
+                            <div class="item-header">
+                                <span class="item-name">19. Falafel Burger 🌱</span>
+                                <div class="dots"></div>
+                                <div class="item-prices"><span class="price-single">8.50</span><span class="price-menu">13.50</span></div>
+                            </div>
+                            <p class="item-desc">Frische Falafel, Cheddar Käse, Homemade Soße</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION 2: BOCADILLO (1,0) -->
+            <section id="sec-bocadillo" class="menu-section">
+                <div class="cat-header">
+                    <h2 class="cat-title">BOCADILLO</h2>
+                    <p class="cat-subtitle">*Alle Bocadillos sind mit Pommes, Salat, Tomate, Zwiebeln, Karotten, Oliven belegt</p>
+                </div>
+
+                <div class="items-grid" style="align-content: flex-start; padding-top: 50px;">
+                    <div class="col-full">
+                        <div class="price-header-row">
+                            <div class="price-labels"><span>Single</span><span>Menü</span></div>
+                        </div>
+
+                        <div class="menu-item">
+                            <div class="item-header">
+                                <span class="item-name" style="font-size: 32px;">8. Merguez Marocain</span>
+                                <div class="dots"></div>
+                                <div class="item-prices" style="font-size: 28px;"><span class="price-single">10.50</span><span class="price-menu">15.50</span></div>
+                            </div>
+                            <p class="item-desc" style="font-size: 16px;">Saftige Merguez Wurst, Oliven, Homemade Soße</p>
+                        </div>
+
+                        <div class="menu-item">
+                            <div class="item-header">
+                                <span class="item-name" style="font-size: 32px;">9. Chicken Paradies</span>
+                                <div class="dots"></div>
+                                <div class="item-prices" style="font-size: 28px;"><span class="price-single">9.90</span><span class="price-menu">14.90</span></div>
+                            </div>
+                            <p class="item-desc" style="font-size: 16px;">Mariniertes Hähnchenfleisch, Homemade Soße</p>
+                        </div>
+
+                        <div class="menu-item">
+                            <div class="item-header">
+                                <span class="item-name" style="font-size: 32px;">10. Chicken Crispy</span>
+                                <div class="dots"></div>
+                                <div class="item-prices" style="font-size: 28px;"><span class="price-single">10.50</span><span class="price-menu">15.50</span></div>
+                            </div>
+                            <p class="item-desc" style="font-size: 16px;">Paniertes knusper Hähnchenfleisch, Homemade Soße</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION 3: BURRITO (2,0) -->
+            <section id="sec-burrito" class="menu-section">
+                <div class="cat-header">
+                    <h2 class="cat-title">BURRITO</h2>
+                </div>
+
+                <div class="items-grid">
+                    <!-- Linke Spalte -->
+                    <div class="col-half">
+                        <div class="price-header-row">
+                            <div class="price-labels"><span>Single</span><span>Menü</span></div>
+                        </div>
+
+                        <div class="menu-item">
+                            <div class="item-header">
+                                <span class="item-name">5. Merguez Burrito</span>
+                                <div class="dots"></div>
+                                <div class="item-prices"><span class="price-single">9.50</span><span class="price-menu">14.50</span></div>
+                            </div>
+                            <p class="item-desc">Saftige Merguez Wurst, knackige Pommes, Cheddar Käse, Mais, Homemade Soße</p>
+                        </div>
+
+                        <div class="menu-item">
+                            <div class="item-header">
+                                <span class="item-name">6. Chicken Paradies Burrito</span>
+                                <div class="dots"></div>
+                                <div class="item-prices"><span class="price-single">8.90</span><span class="price-menu">13.90</span></div>
+                            </div>
+                            <p class="item-desc">Hähnchenfleisch, knackige Pommes, Cheddar Käse, Mais, Homemade Soße</p>
+                        </div>
+
+                        <div class="menu-item">
+                            <div class="item-header">
+                                <span class="item-name">7. Chicken Spicy Burrito 🌶️</span>
+                                <div class="dots"></div>
+                                <div class="item-prices"><span class="price-single">9.50</span><span class="price-menu">14.50</span></div>
+                            </div>
+                            <p class="item-desc">Hähnchenfleisch, knackige Pommes, Cheddar, Jalapeños, Mais, Homemade Soße</p>
+                        </div>
+                    </div>
+
+                    <!-- Rechte Spalte -->
+                    <div class="col-half">
+                        <div class="price-header-row">
+                            <div class="price-labels"><span>Single</span><span>Menü</span></div>
+                        </div>
+
+                        <div class="menu-item">
+                            <div class="item-header">
+                                <span class="item-name">20. Crispy Burrito</span>
+                                <div class="dots"></div>
+                                <div class="item-prices"><span class="price-single">9.50</span><span class="price-menu">13.90</span></div>
+                            </div>
+                            <p class="item-desc">Paniertes Hähnchenfleisch, knackige Pommes, Cheddar Käse, Mais, Homemade Soße</p>
+                        </div>
+
+                        <div class="menu-item">
+                            <div class="item-header">
+                                <span class="item-name">21. Kefta Burrito</span>
+                                <div class="dots"></div>
+                                <div class="item-prices"><span class="price-single">8.90</span><span class="price-menu">13.90</span></div>
+                            </div>
+                            <p class="item-desc">Hackfleisch, knackige Pommes, Cheddar Käse, Homemade Soße</p>
+                        </div>
+
+                        <div class="menu-item">
+                            <div class="item-header">
+                                <span class="item-name">22. Falafel Burrito 🌱</span>
+                                <div class="dots"></div>
+                                <div class="item-prices"><span class="price-single">8.90</span><span class="price-menu">13.90</span></div>
+                            </div>
+                            <p class="item-desc">Frische Falafel, knackige Pommes, Cheddar Käse, Homemade Soße</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION 4: SIDES & EXTRAS (0,1) -->
+            <section id="sec-sides" class="menu-section">
+                <div class="items-grid">
+                    <!-- Linke Spalte -->
+                    <div class="col-half" style="gap: 30px;">
+                        <h2 class="cat-title" style="font-size: 50px; text-align: left; margin-bottom: 10px;">SIDES & EXTRAS</h2>
+                        
+                        <div class="menu-item">
+                            <div class="item-header">
+                                <span class="item-name">12. Currywurst mit Brot</span>
+                                <div class="dots"></div>
+                                <div class="item-prices single-price-col"><span class="price-menu text-white">5.50</span></div>
+                            </div>
+                        </div>
+                        <div class="menu-item">
+                            <div class="item-header">
+                                <span class="item-name">13. Currywurst + Pommes + Brot</span>
+                                <div class="dots"></div>
+                                <div class="item-prices single-price-col"><span class="price-menu text-white">7.50</span></div>
+                            </div>
+                        </div>
+                        <div class="menu-item">
+                            <div class="item-header">
+                                <span class="item-name">14. Pommes</span>
+                                <div class="dots"></div>
+                                <div class="item-prices single-price-col"><span class="price-menu text-white">3.90</span></div>
+                            </div>
+                        </div>
+                        <div class="menu-item">
+                            <div class="item-header">
+                                <span class="item-name">A. Süßkartoffel</span>
+                                <div class="dots"></div>
+                                <div class="item-prices single-price-col"><span class="price-menu">4.90</span></div>
+                            </div>
+                        </div>
+                        <div class="menu-item">
+                            <div class="item-header">
+                                <span class="item-name">15. Chicken Crispy Bowl</span>
+                                <div class="dots"></div>
+                                <div class="item-prices single-price-col"><span class="price-menu text-white">9.50</span></div>
+                            </div>
+                            <p class="item-desc">Knackige Pommes, paniertes Hähnchenfleisch, Homemade Soße</p>
+                        </div>
+                        <div class="menu-item">
+                            <div class="item-header">
+                                <span class="item-name">23. Falafel Bowl 🌱</span>
+                                <div class="dots"></div>
+                                <div class="item-prices single-price-col"><span class="price-menu text-white">8.90</span></div>
+                            </div>
+                            <p class="item-desc">Pommes, frische Falafel, Mais, Karotten, Rucola</p>
+                        </div>
+                    </div>
+
+                    <!-- Rechte Spalte -->
+                    <div class="col-half" style="gap: 50px; padding-top: 20px;">
+                        
+                        <div class="promo-box">
+                            <div class="promo-text">
+                                <h2>27. CHICKEN</h2>
+                                <h2>WINGS</h2>
+                                <p>(Sweet - Chilli)</p>
+                            </div>
+                            <div class="promo-img-wrapper">
+                                <div class="promo-badge">LIMITED</div>
+                                <img src="chicken-wings.jpg" class="promo-img" onerror="this.style.display='none';">
+                            </div>
+                        </div>
+
+                        <div>
+                            <h2 class="cat-title" style="font-size: 50px; text-align: left; margin-bottom: 20px;">SALAT</h2>
+                            <div class="menu-item">
+                                <div class="item-header">
+                                    <span class="item-name">16. Bauernsalat</span>
+                                    <div class="dots"></div>
+                                    <div class="item-prices single-price-col"><span class="price-menu text-white">7.90</span></div>
+                                </div>
+                                <p class="item-desc" style="color: #d4af37; font-weight: 900; margin-top: 5px;">
+                                    + Hähnchenstreifen: <span style="color: #ffffff; margin-left: 10px;">3.00 €</span>
+                                </p>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION 5: DRINKS & DIPS (1,1) -->
+            <section id="sec-drinks" class="menu-section">
+                <div class="items-grid" style="align-content: flex-start; padding-top: 80px;">
+                    
+                    <div class="col-half">
+                        <h2 class="cat-title" style="font-size: 55px; text-align: left; margin-bottom: 40px;">DIPS</h2>
+                        <div class="menu-item">
+                            <div class="item-header">
+                                <span class="item-name" style="color: rgba(226, 232, 240, 0.9); font-size: 24px;">Andalous, Samurai, Brazil, Ketchup, Maymo</span>
+                                <div class="dots"></div>
+                                <div class="item-prices single-price-col"><span class="price-menu">0.50</span></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-half">
+                        <h2 class="cat-title" style="font-size: 55px; text-align: left; margin-bottom: 40px;">GETRÄNKE</h2>
+                        <div class="menu-item" style="margin-bottom: 30px;">
+                            <div class="item-header">
+                                <span class="item-name">Cola, Fanta, Sprite, MezzoMix</span>
+                                <div class="dots"></div>
+                                <div class="item-prices single-price-col"><span class="price-menu text-white">2.70</span></div>
+                            </div>
+                        </div>
+                        <div class="menu-item" style="margin-bottom: 30px;">
+                            <div class="item-header">
+                                <span class="item-name">Elephant Bay Eistee & Limonade</span>
+                                <div class="dots"></div>
+                                <div class="item-prices single-price-col"><span class="price-menu text-white">2.90</span></div>
+                            </div>
+                        </div>
+                        <div class="menu-item">
+                            <div class="item-header">
+                                <span class="item-name">Wasser (Still/Sprudel)</span>
+                                <div class="dots"></div>
+                                <div class="item-prices single-price-col"><span class="price-menu text-white">2.50</span></div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <div class="footer-info">
+                    <h3>GUTEN HUNGER - B'SSAHA - BUON APPETITO</h3>
+                    <p>Konrad-Adenauer-Str. 26, 63322 Rödermark</p>
+                    <span class="gold-dot">•</span>
+                    <p>Di - So: 11:30 - 22:00 Uhr</p>
+                    <span class="gold-dot">•</span>
+                    <p>Tel.: 06074 728 6658</p>
+                </div>
+            </section>
+
+            <!-- SECTION 6: FILLER LOGO (2,1) -->
+            <section id="sec-filler" class="menu-section">
+                <div class="filler-content">
+                    <img src="Logo.jpg" class="filler-logo">
+                    <h2 class="filler-text">Wir freuen uns auf<br><span>deine Bestellung</span></h2>
+                    <div class="halal-badge">100% HALAL</div>
+                </div>
+            </section>
+
+        </div>
+    </div>
+
+    <!-- REINES VANILLA JAVASCRIPT (ES5) - Läuft auf JEDEM TV-Prozessor -->
+    <script>
+        var board = document.getElementById('board');
+        var header = document.getElementById('main-header');
+        
+        var sectionsCount = 5;
+        var currentIndex = 0;
+        var presentationTimer;
+
+        // Dynamische Lesezeiten (in Millisekunden)
+        var categoryDelays = [14000, 9000, 12000, 11000, 9000];
+
+        // Berechnet den Zoom-Out Faktor, damit das 3x2 Feld in den Monitor passt
+        function getOverviewTransform() {
+            var scaleX = window.innerWidth / (window.innerWidth * 3 * 1.02);
+            var scaleY = window.innerHeight / (window.innerHeight * 2 * 1.02);
+            var scale = scaleX < scaleY ? scaleX : scaleY; // Math.min
+            
+            var scaledW = (window.innerWidth * 3) * scale;
+            var scaledH = (window.innerHeight * 2) * scale;
+            
+            var x = (window.innerWidth - scaledW) / 2;
+            var y = (window.innerHeight - scaledH) / 2;
+            
+            return 'translate3d(' + x + 'px, ' + y + 'px, 0) scale(' + scale + ')';
+        }
+
+        // Berechnet die Position, um genau EINE Sektion auf 100% zu zoomen
+        function getDetailTransform(index) {
+            var col = index % 3;
+            var row = Math.floor(index / 3);
+            var x = -col * window.innerWidth;
+            var y = -row * window.innerHeight;
+            
+            return 'translate3d(' + x + 'px, ' + y + 'px, 0) scale(1)';
+        }
+
+        function goToOverview(nextIndex) {
+            clearTimeout(presentationTimer);
+            header.style.opacity = "0.6";
+            
+            // Führt die CSS Transition aus
+            board.style.transform = getOverviewTransform();
+            
+            // Warte bis rausgezoomt (1.8s) + Übersichtsdauer (2.5s)
+            presentationTimer = setTimeout(function() {
+                goToDetail(nextIndex);
+            }, 3500); 
+        }
+
+        function goToDetail(index) {
+            currentIndex = index;
+            clearTimeout(presentationTimer);
+            header.style.opacity = "1";
+            
+            // Zoom in die Sektion
+            board.style.transform = getDetailTransform(index);
+            
+            // Lesezeit abwarten, dann zur nächsten Kategorie über die Übersicht
+            presentationTimer = setTimeout(function() {
+                var nextIdx = (currentIndex + 1) % sectionsCount;
+                goToOverview(nextIdx);
+            }, categoryDelays[index]);
+        }
+
+        // Start der Animation nach dem Laden der Seite
+        window.onload = function() {
+            // Starte in der ersten Sektion (Burger)
+            board.style.transform = getDetailTransform(0);
+            
+            // Nach kurzer Lesezeit beginnt die Schleife
+            setTimeout(function() {
+                goToOverview(1);
+            }, categoryDelays[0]);
+        };
+    </script>
+</body>
+</html>
